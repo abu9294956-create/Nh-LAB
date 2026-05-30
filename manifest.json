@@ -1,0 +1,37 @@
+{
+  "name": "NetHunter White Hat Lab",
+  "short_name": "NH Lab",
+  "description": "Full white hat hacking lab for Termux & Kali NetHunter",
+  "start_url": "./nethunter-lab.html",
+  "display": "standalone",
+  "background_color": "#020b02",
+  "theme_color": "#00ff41",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["education", "utilities"],
+  "shortcuts": [
+    {
+      "name": "Setup Guide",
+      "url": "./nethunter-lab.html#setup",
+      "description": "NetHunter setup instructions"
+    },
+    {
+      "name": "Checklist",
+      "url": "./nethunter-lab.html#checklist",
+      "description": "Pentest checklist"
+    }
+  ]
+}

